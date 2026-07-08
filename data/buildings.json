@@ -1,0 +1,48 @@
+{
+  "building_types": {
+    "lumber_camp": {
+      "name": "Lumber Camp",
+      "size": [2, 2],
+      "capabilities": ["production"],
+      "recipes": ["harvest_wood"],
+      "workers": 1,
+      "storage": {
+        "wood": 20
+      }
+    },
+    "sawmill": {
+      "name": "Sawmill",
+      "size": [2, 2],
+      "capabilities": ["transformation"],
+      "recipes": ["wood_to_plank"],
+      "workers": 1,
+      "storage": {
+        "wood": 20,
+        "plank": 10
+      }
+    },
+    "warehouse": {
+      "name": "Warehouse",
+      "size": [3, 3],
+      "capabilities": ["storage"],
+      "doors" : 4,
+      "recipes": [],
+      "storage": {
+        "wood": 100,
+        "plank": 100,
+        "tool": 50
+      }
+    },
+    "disposal": {
+      "name": "Trash Disposal",
+      "size": [3, 3],
+      "capabilities": ["disposal"],
+      "workers": 1,
+      "doors" : 4,
+      "recipes": ["disposal"],
+      "storage": {
+        "trash": 10
+      }
+    }
+  }
+}

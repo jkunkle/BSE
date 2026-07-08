@@ -1,0 +1,30 @@
+{
+  "recipes": {
+    "harvest_wood": {
+      "name": "Harvest Wood",
+      "inputs": {},
+      "outputs": {
+        "wood": 1
+      },
+      "duration": 3.0
+    },
+    "wood_to_plank": {
+      "name": "Wood to Plank",
+      "inputs": {
+        "wood": 2
+      },
+      "outputs": {
+        "plank": 1
+      },
+      "duration": 5.0
+    },
+    "disposal": {
+      "name": "Dispasal",
+      "inputs": {
+        "trash": 1
+      },
+      "outputs": {},
+      "duration": 5.0
+    }
+  }
+}
