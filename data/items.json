@@ -1,0 +1,20 @@
+{
+    "items": {
+        "wood" : {
+            "name" : "Wood",
+            "price" : 1
+        },
+        "vegetables" : {
+            "name" : "Vegetables",
+            "price" : 1
+        },
+        "plank" : {
+            "name": "Plank",
+            "price" : 10
+        },
+        "trash" : {
+            "name" : "Trash",
+            "price" : -10
+        }
+    }
+}

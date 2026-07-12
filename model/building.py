@@ -13,8 +13,12 @@ class BuildingTypeDefinition:
     y_size: int
     workers: int
     capabilities: List[str]
+    doors : int
+    cost : float
     recipe_keys: List[str]
     storage_limits: Dict[str, int]
+    color : List[it]
+    key_code : str
 
 @dataclass
 class Door:

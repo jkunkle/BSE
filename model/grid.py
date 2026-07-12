@@ -77,7 +77,7 @@ class Grid:
         if not self.is_area_inside(x, y, x_size, y_size):
             return False
     
-        for tile_x, tile_y, tile in self.iter_area(x, y, x+x_size, y+y_size):
+        for tile_x, tile_y, tile in self.iter_area(x, y, x_size, y_size):
             if tile.building_id is not None or tile.road_id is not None:
                 return False
     

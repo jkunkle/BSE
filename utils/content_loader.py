@@ -4,6 +4,7 @@ from types import MappingProxyType
 
 from model.recipe import RecipeTypeDefinition
 from model.building import BuildingTypeDefinition
+from model.item import ItemDefinition
 from model.config_store import ConfigStore
 
 
@@ -27,16 +28,34 @@ def freeze_mapping(data: dict[str, int]) -> MappingProxyType:
     '''
     return MappingProxyType(dict(data))
 
-def load_config(building_types_path: str, recipes_path: str):
+def load_config(building_types_path: str, recipes_path: str, items_path: str):
 
+    items = load_items(items_path)
     recipes = load_recipes(recipes_path)
-    validate_recipes(recipes)
+    validate_recipes(recipes, items)
 
     building_types = load_building_types(building_types_path)
 
-    validate_building_types(recipes, building_types)
+    validate_building_types(recipes, building_types, items)
 
-    return ConfigStore(recipes, building_types)
+    return ConfigStore(items, recipes, building_types)
+
+def load_items(path: str) -> dict[str, ItemDefinition]:
+    raw_data = read_json_file(path)
+
+    if 'items' not in raw_data:
+        raise ValueError(f'{path} must contain top-level key "items"')
+
+    items: dict[str, ItemDefinition] = {}
+
+    for item_key, item_data in raw_data['items'].items():
+        items[item_key] = ItemDefinition(
+            key=item_key,
+            name=item_data['name'],
+            price=item_data['price'],
+        )
+
+    return items
 
 def load_recipes(path: str) -> dict[str, RecipeTypeDefinition]:
     raw_data = read_json_file(path)
@@ -81,9 +100,13 @@ def load_building_types(path: Path) -> dict[str, BuildingTypeDefinition]:
             x_size=int(size[0]),
             y_size=int(size[1]),
             capabilities=frozenset(building_data.get('capabilities', [])),
+            doors = building_data.get('doors', None),
+            cost = building_data['cost'],
             workers=building_data.get('workers', 0),
             recipe_keys=tuple(building_data.get('recipes', [])),
             storage_limits=freeze_mapping(building_data.get('storage', {})),
+            color=building_data.get('color', []),
+            key_code=building_data['key_code']
         )
 
     return building_types
@@ -91,18 +114,29 @@ def load_building_types(path: Path) -> dict[str, BuildingTypeDefinition]:
 
 def validate_recipes(
     recipes: dict[str, RecipeTypeDefinition],
+    items: dict[str, ItemDefinition],
 ) -> None:
     for recipe_key, recipe in recipes.items():
         if recipe.duration <= 0:
             raise ValueError(f'Recipe "{recipe_key}" must have positive duration')
 
         for item_id, amount in recipe.inputs.items():
+            if item_id not in items:
+                raise ValueError(
+                    f'Recipe {recipe_key} inputs references a non-exisiting item : {item_id}'
+                )
+
+
             if amount <= 0:
                 raise ValueError(
                     f'Recipe {recipe_key} has non-positive input amount for {item_id}'
                 )
 
         for item_id, amount in recipe.outputs.items():
+            if item_id not in items:
+                raise ValueError(
+                    f'Recipe {recipe_key} outputs references a non-exisiting item : {item_id}'
+                )
             if amount <= 0:
                 raise ValueError(
                     f'Recipe {recipe_key} has non-positive output amount for {item_id}'
@@ -112,6 +146,7 @@ def validate_recipes(
 def validate_building_types(
     recipes: dict[str, RecipeTypeDefinition],
     building_types: dict[str, BuildingTypeDefinition],
+    items: dict[str, ItemDefinition],
 ) -> None:
     for building_type_id, building_type in building_types.items():
         if building_type.x_size <= 0 or building_type.y_size <= 0:
@@ -125,3 +160,8 @@ def validate_building_types(
                     f'Building type {building_type_id} references unknown recipe {recipe_key}'
                 )
 
+        for item_key in list(building_type.storage_limits.keys()):
+            if item_key not in items:
+                raise ValueError(
+                    f'Building type {building_type_id} storage references unknown item {item_key}'
+                )

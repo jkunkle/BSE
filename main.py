@@ -7,6 +7,7 @@ from system.transport_system import TransportSystem
 
 BUILDINGS_DATA = 'data/buildings.json'
 RECIPES_DATA = 'data/recipes.json'
+ITEMS_DATA = 'data/items.json'
 
 import pygame
 from pathlib import Path
@@ -17,6 +18,14 @@ from view.pygame_view import PygameView
 from controller.pygame_controller import PygameController
 
 
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(levelname)s:%(name)s:%(message)s",
+)
+
+
 def main() -> None:
     pygame.init()
 
@@ -25,9 +34,10 @@ def main() -> None:
 
     clock = pygame.time.Clock()
 
-    cstore = load_config(BUILDINGS_DATA, RECIPES_DATA)
+    cstore = load_config(BUILDINGS_DATA, RECIPES_DATA, ITEMS_DATA)
 
-    world = World(cstore, workers=10)
+    world = World(cstore, workers=0)
+    uistate = UIState()
 
     #id_lumber = world.add_building('lumber_camp', 5, 5)
     #id_sawmill = world.add_building('sawmill', 20, 20)
@@ -52,14 +62,14 @@ def main() -> None:
     running = True
 
     while running:
-        frame_dt = clock.tick(60) / 500.0
+        frame_dt = clock.tick(60) / world.speed
         accumulator += frame_dt
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             else:
-                controller.handle_event(event, world)
+                controller.handle_event(event, world, view)
 
         while accumulator >= fixed_dt:
             step(world, ps, ts, frame_dt)

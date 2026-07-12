@@ -1,48 +1,116 @@
 {
   "building_types": {
+    "export": {
+      "name": "Export Hub",
+      "size": [4, 4],
+      "capabilities": ["export"],
+      "recipes": [],
+      "cost" : 2000,
+      "workers": 2,
+      "storage": {
+        "wood": 100,
+        "plank": 100,
+        "vegetables" : 100,
+        "trash" : 50
+      },
+      "color" : [130, 0, 0],
+      "key_code" : "1"
+
+    },
+    "housing": {
+      "name": "Housing",
+      "size": [3, 3],
+      "capabilities": ["housing"],
+      "recipes": [],
+      "cost" : 200,
+      "workers": 8,
+      "storage": {
+      },
+      "color" : [0, 0, 130],
+      "key_code" : "2"
+    },
     "lumber_camp": {
       "name": "Lumber Camp",
       "size": [2, 2],
       "capabilities": ["production"],
       "recipes": ["harvest_wood"],
+      "cost" : 100,
       "workers": 1,
       "storage": {
         "wood": 20
-      }
+      },
+      "color" : [60, 130, 60],
+      "key_code" : "3"
+    },
+    "vegfarm": {
+      "name": "Vegetable Farm",
+      "size": [2, 2],
+      "capabilities": ["production"],
+      "recipes": ["harvest_veg"],
+      "cost" : 100,
+      "workers": 1,
+      "storage": {
+        "vegetables": 20
+      },
+      "color" : [130, 130, 60],
+      "key_code" : "4"
     },
     "sawmill": {
       "name": "Sawmill",
       "size": [2, 2],
       "capabilities": ["transformation"],
       "recipes": ["wood_to_plank"],
+      "cost" : 200,
       "workers": 1,
       "storage": {
         "wood": 20,
         "plank": 10
-      }
+      },
+      "color" : [140, 95, 45],
+      "key_code" : "5"
+    },
+    "market": {
+      "name": "Market",
+      "size": [5, 3],
+      "capabilities": ["storage"],
+      "doors" : 4,
+      "cost" : 600,
+      "recipes": [],
+      "storage": {
+        "vegetables": 20
+      },
+      "color" : [10, 255, 30],
+      "key_code" : "6"
     },
     "warehouse": {
       "name": "Warehouse",
       "size": [3, 3],
       "capabilities": ["storage"],
       "doors" : 4,
+      "cost" : 400,
       "recipes": [],
       "storage": {
         "wood": 100,
         "plank": 100,
-        "tool": 50
-      }
+        "vegetables" : 100,
+        "trash" : 50
+      },
+      "color" : [90, 90, 130],
+      "key_code" : "7"
     },
     "disposal": {
       "name": "Trash Disposal",
       "size": [3, 3],
       "capabilities": ["disposal"],
       "workers": 1,
+      "cost" : 400,
       "doors" : 4,
       "recipes": ["disposal"],
       "storage": {
         "trash": 10
-      }
+      },
+      "color" : [20, 20, 20],
+      "key_code" : "8"
     }
   }
 }

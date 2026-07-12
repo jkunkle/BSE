@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import Enum, auto
+from model.worker import WorkerState
 
 
 class TransportJobState(Enum):
@@ -23,13 +24,10 @@ class TransportJob:
     start_time: float
     finish_time: float
 
-    worker : Worker
+    worker_id : int 
 
     state: TransportJobState = TransportJobState.IN_TRANSIT
     
-    def __post_init__(self):
-        worker.state = WorkerState.MOVING
-
     def progress(self, world_time: float) -> float:
         duration = self.finish_time - self.start_time
 

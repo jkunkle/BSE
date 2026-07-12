@@ -2,6 +2,7 @@ import logging
 from math import sqrt
 
 from model.transport_job import TransportJob, TransportJobState
+from model.worker import WorkerState
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,9 @@ class TransportSystem:
 
     def create_jobs_for_worker_return(self, world) -> None:
         for supply_link in world.supply_links.values():
-            
             for supply_worker_id in supply_link.worker_ids:
                 sworker = world.workers[supply_worker_id] 
-                if sworker.state != MOVING:
-                    self._try_create_job_for_worker_return(world, supply_link, sworker)
+                self._try_create_job_for_worker_return(world, supply_link, sworker)
 
     def _try_create_job_for_supply_link(self, world, supply_link) -> None:
 
@@ -54,16 +53,24 @@ class TransportSystem:
         if not target.inventory.can_add(item_key, amount):
             return
 
-        worker_at_source_id = None
-        for w in self.workers:
-            if w.located_building_id is not None and w.located_building_id == supply_link.source_building_id:
-                worker_at_source_id = w.id
+        if not supply_link.worker_ids:
+            raise ValueError('Supply Link must provide workers')
+            return
+
+        
+        chosen_worker = None
+        for wid in supply_link.worker_ids:
+            worker = world.workers[wid]
+
+            if worker.located_building_id == supply_link.source_building_id:
+                chosen_worker = wid
                 break
 
-        if worker_at_source_id is None:
+        if chosen_worker is None:
             return
         
         print ('Worker available!')
+        print (world.workers[chosen_worker])
         # Important: reserve by removing from source immediately.
         # This prevents the same item being assigned to many jobs.
         source.inventory.remove(item_key, amount)
@@ -72,13 +79,17 @@ class TransportSystem:
 
         job_id = world.get_next_transport_job_id()
 
+        world.workers[chosen_worker].assigned_job_id = job_id
+        world.workers[chosen_worker].located_building_id = None
+        world.workers[chosen_worker].state = WorkerState.MOVING
+
         job = TransportJob(
             job_id=job_id,
             source_building_id=source.id,
             target_building_id=target.id,
             item_key=item_key,
             amount=amount,
-            worker=worker_at_source_id,
+            worker_id=chosen_worker,
             start_time=world.time,
             finish_time=world.time + duration,
 
@@ -89,40 +100,50 @@ class TransportSystem:
         world.changed_buildings.add(source.id)
         world.changed_transport_jobs.add(job_id)
 
-        logger.info(
-            "Created transport job %s: %s x%s from building %s to building %s, finish_time=%.2f",
-            job_id,
+        print(
+            "Created transport job %s: %s x%s from building %s to building %s, finish_time=%.2f"
+            %(job_id,
             item_key,
             amount,
             source.id,
             target.id,
             job.finish_time,
+             )
         )
 
     def _try_create_job_for_worker_return(self, world, supply_link, worker) -> None:
 
+        if worker.state != WorkerState.IDLE:
+            return;
+
+        if worker.located_building_id != supply_link.target_building_id:
+            return
+        
+
         source = world.buildings[supply_link.source_building_id]
         target = world.buildings[supply_link.target_building_id]
 
-        if worker.located_building_id == supply_link.target_building_id:
-        
-            duration = self._calculate_transport_duration(world, target, source)
+        duration = self._calculate_transport_duration(world, target, source)
 
-            job_id = world.get_next_transport_job_id()
+        job_id = world.get_next_transport_job_id()
 
-            job = TransportJob(
-                job_id=job_id,
-                source_building_id=target.id,
-                target_building_id=source.id,
-                item_key=None,
-                amount=0,
-                worker=worker.id,
-                start_time=world.time,
-                finish_time=world.time + duration,
+        job = TransportJob(
+            job_id=job_id,
+            source_building_id=target.id,
+            target_building_id=source.id,
+            item_key=None,
+            amount=0,
+            worker_id=worker.id,
+            start_time=world.time,
+            finish_time=world.time + duration,
 
-            )
+        )
 
         world.transport_jobs[job_id] = job
+
+        worker.state = WorkerState.MOVING
+        worker.located_building_id = None
+        worker.assigned_job_id = job_id
 
         world.changed_transport_jobs.add(job_id)
 
@@ -138,7 +159,7 @@ class TransportSystem:
         job = world.transport_jobs[job_id]
         target = world.buildings[job.target_building_id]
 
-        if job.amount > 0
+        if job.amount > 0:
             if not target.inventory.can_add(job.item_key, job.amount):
                 # In the first design this should rarely happen, because we checked target space
                 # before creating the job. But it may happen if other systems add items meanwhile.
@@ -153,9 +174,11 @@ class TransportSystem:
 
             target.inventory.add(job.item_key, job.amount)
 
+
+
         job.state = TransportJobState.COMPLETED
-        world.workers[job.worker.id].state = WorkerState.ASSIGNED
-        world.workers[job.worker.id].located_building_id = target.id
+        world.workers[job.worker_id].state = WorkerState.IDLE
+        world.workers[job.worker_id].located_building_id = target.id
 
         world.changed_buildings.add(target.id)
         world.changed_transport_jobs.add(job_id)
