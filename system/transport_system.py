@@ -46,6 +46,9 @@ class TransportSystem:
             if worker.state != WorkerState.ASSIGNED:
                 continue
 
+            if self._is_mid_production(world, worker):
+                continue
+
             if worker.needs[NeedType.FOOD] < 0.5:
                 self._try_create_market_job(world, worker)
                 continue
@@ -55,6 +58,13 @@ class TransportSystem:
             if worker.needs[NeedType.RECREATION] < 0.5:
                 self._try_create_return_home_job(world, worker)
                 continue
+
+    def _is_mid_production(self, world, worker) -> bool:
+        building = world.buildings.get(worker.assigned_building_id)
+        if building is None:
+            return False
+
+        return building.production_end_time is not None
 
     def _try_finish_resting(self, world, worker) -> None:
         if worker.needs[NeedType.SLEEP] < self.rest_need_threshold:

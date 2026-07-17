@@ -91,6 +91,3 @@ class ProductionSystem:
         building.production_end_time = None
 
         world.changed_buildings.add(building_id)
-
-        # Optional: immediately try to start next cycle.
-        self._try_start_production(world, building_id, recipe)
