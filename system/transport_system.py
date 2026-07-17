@@ -62,10 +62,6 @@ class TransportSystem:
         if worker.needs[NeedType.RECREATION] < self.rest_need_threshold:
             return
 
-        if worker.assigned_building_id is None:
-            worker.state = WorkerState.ASSIGNED
-            return
-
         origin = world.buildings[worker.home_building_id]
         destination = world.buildings[worker.assigned_building_id]
         self.create_empty_transport_job(world, worker, origin, destination)
