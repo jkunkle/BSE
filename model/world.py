@@ -112,25 +112,23 @@ class World():
                 w.needs[NeedType.FOOD] 
                 + wtype.need_rates[NeedType.FOOD]*dt
             )
-            if w.state != WorkerState.IDLE:
-                w.needs[NeedType.RECREATION] = (
-                    w.needs[NeedType.RECREATION] 
-                    + wtype.need_rates[NeedType.RECREATION]*dt
-                )
-                w.needs[NeedType.SLEEP] = (
-                    w.needs[NeedType.SLEEP] 
-                    + wtype.need_rates[NeedType.SLEEP]*dt
-                )
-            
             if w.state == WorkerState.RESTING:
-
                 w.needs[NeedType.RECREATION] = (
-                    w.needs[NeedType.RECREATION] 
+                    w.needs[NeedType.RECREATION]
                     - wtype.need_rates[NeedType.RECREATION]*dt
                 )
                 w.needs[NeedType.SLEEP] = (
-                    w.needs[NeedType.SLEEP] 
+                    w.needs[NeedType.SLEEP]
                     - wtype.need_rates[NeedType.SLEEP]*dt
+                )
+            elif w.state != WorkerState.IDLE:
+                w.needs[NeedType.RECREATION] = (
+                    w.needs[NeedType.RECREATION]
+                    + wtype.need_rates[NeedType.RECREATION]*dt
+                )
+                w.needs[NeedType.SLEEP] = (
+                    w.needs[NeedType.SLEEP]
+                    + wtype.need_rates[NeedType.SLEEP]*dt
                 )
             
 
@@ -305,9 +303,6 @@ class World():
             current_recipe_key = curr_recipe_key
         )
 
-        for wid in worker_ids:
-            self.workers[wid].home_building_id = building_id
-    
         self.buildings[building_id] = building
     
         self.grid.mark_occupied_building(

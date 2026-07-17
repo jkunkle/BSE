@@ -273,6 +273,7 @@ class PygameView:
         lines.append('-------')
 
         for worker in workers.values():
+
             lines.append(f"Worker #{worker.id}")
             lines.append(f"  state: {worker.state}")
 
