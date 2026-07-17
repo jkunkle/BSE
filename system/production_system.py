@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 class ProductionSystem:
     def update(self, world, dt: float) -> None:
         for building_id in world.buildings.keys():
-            self.update_building(world, building_id)
+            self.update_building(world, building_id, dt)
 
-    def update_building(self, world, building_id: int) -> None:
+    def update_building(self, world, building_id: int, dt: float) -> None:
         building = world.buildings[building_id]
         building_type = world.config.building_types[building.building_type_key]
 
@@ -22,10 +22,24 @@ class ProductionSystem:
 
         recipe = world.config.recipes[recipe_key]
 
+        if not self._workers_present(world, building):
+            if building.production_end_time is not None:
+                # No one's here to do the work -- freeze the countdown
+                # instead of letting it finish while unattended.
+                building.production_start_time += dt
+                building.production_end_time += dt
+            return
+
         if building.production_end_time is not None:
             self._check_finish_production(world, building_id, recipe)
         else:
             self._try_start_production(world, building_id, recipe)
+
+    def _workers_present(self, world, building) -> bool:
+        return all(
+            world.workers[worker_id].located_building_id == building.id
+            for worker_id in building.worker_ids
+        )
 
     def _try_start_production(self, world, building_id: int, recipe) -> None:
         building = world.buildings[building_id]
