@@ -1,0 +1,14 @@
+{
+    "worker_types": {
+        "standard" : {
+            "name" : "standard",
+            "price" : -5,
+            "need_rates" : {
+                "food" : -0.005,
+                "recreation" : -0.001,
+                "sleep" : -0.008
+            }
+        }
+    }
+}
+

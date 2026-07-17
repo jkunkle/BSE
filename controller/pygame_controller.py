@@ -1,4 +1,5 @@
 import pygame
+from model.ui_state import UITab
 
 
 class PygameController:
@@ -11,38 +12,33 @@ class PygameController:
         self.link_dest_id = None
         self.delete_item = False
 
-    def handle_event(self, event: pygame.event.Event, world, view) -> None:
+    def handle_event(self, event: pygame.event.Event, world, ui_state, view) -> None:
+
+
         if event.type == pygame.KEYDOWN:
-            self._handle_keydown(event, world, view)
+            handled_contract_keydown = False
+            if ui_state.current_info_tab == UITab.CONTRACTS:
+                handled_contract_keydown = self._handle_contract_keydown(event, world, ui_state)
+
+            if not handled_contract_keydown:
+                self._handle_keydown(event, world, ui_state, view)
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             self._handle_mouse_button(event, world)
 
-    def _handle_keydown(self, event: pygame.event.Event, world, view) -> None:
+    def _handle_keydown(self, event: pygame.event.Event, world, ui_state, view) -> None:
 
         building_types = world.config.building_types.values()
         if event.key == pygame.K_s:
             self.make_supply_link = True
         elif event.key == pygame.K_LEFTBRACKET:
-            view.advance_info_tab(left=True)
+            ui_state.previous_info_tab()
+            if ui_state.info_tab_options[ui_state.info_tab_idx] != UITab.CONTRACTS:
+                ui_state.deselect_contract_id()
         elif event.key == pygame.K_RIGHTBRACKET:
-            view.advance_info_tab(left=False)
-        elif event.key in [pygame.K_DOWN,pygame.K_UP,pygame.K_RIGHT,pygame.K_LEFT]:
-            if view.info_tab_options[view.info_tab_idx] == 'contracts':
-                if event.key == pygame.K_DOWN:
-                    world.try_contract_list_down()
-                if event.key == pygame.K_UP:
-                    world.try_contract_list_up()
-                if event.key == pygame.K_RIGHT:
-                    world.try_current_contract_increase()
-                if event.key == pygame.K_LEFT:
-                    world.try_current_contract_decrease()
-        elif event.key == pygame.K_UP:
-            view.process_up_key()
-        elif event.key == pygame.K_RIGHT:
-            view.process_right_key()
-        elif event.key == pygame.K_LEFT:
-            view.process_left_key()
+            ui_state.next_info_tab()
+            if ui_state.info_tab_options[ui_state.info_tab_idx] != UITab.CONTRACTS:
+                ui_state.deselect_contract_id()
         elif event.key == pygame.K_d:
             self.delete_item = True
         elif event.key == pygame.K_PLUS or event.key == pygame.K_KP_PLUS or event.key == pygame.K_EQUALS:
@@ -56,6 +52,45 @@ class PygameController:
                     self.make_building = True
                     self.selected_building_type_key = btype.key
 
+    def _handle_contract_keydown(self, event, world, ui_state):
+
+        sorted_contract_ids = world.get_contract_ids_sorted_by_price()
+
+        if event.key == pygame.K_DOWN:
+            if ui_state.selected_contract_id is None:
+                ui_state.selected_contract_id = sorted_contract_ids[0]
+            else:
+                cur_idx = sorted_contract_ids.index(ui_state.selected_contract_id)
+                if cur_idx == len(sorted_contract_ids) - 1:
+                    ui_state.selected_contract_id = sorted_contract_ids[0]
+                else:
+                    ui_state.selected_contract_id = sorted_contract_ids[cur_idx+1]
+
+            return True
+        if event.key == pygame.K_UP:
+            if ui_state.selected_contract_id is None:
+                ui_state.selected_contract_id = sorted_contract_ids[-1]
+            else:
+                cur_idx = sorted_contract_ids.index(ui_state.selected_contract_id)
+                if cur_idx == 0:
+                    ui_state.selected_contract_id = sorted_contract_ids[-1]
+                else:
+                    ui_state.selected_contract_id = sorted_contract_ids[cur_idx-1]
+
+            return True
+
+        if event.key == pygame.K_RIGHT:
+            if ui_state.selected_contract_id is None:
+                return False
+            world.contracts[ui_state.selected_contract_id].increase_amount()
+            return True
+        if event.key == pygame.K_LEFT:
+            if ui_state.selected_contract_id is None:
+                return False
+            world.contracts[ui_state.selected_contract_id].decrease_amount()
+            return True
+
+        return False
     def _handle_mouse_button(self, event: pygame.event.Event, world) -> None:
         if event.button != 1:
             return

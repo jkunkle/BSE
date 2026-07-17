@@ -17,7 +17,7 @@ class BuildingTypeDefinition:
     cost : float
     recipe_keys: List[str]
     storage_limits: Dict[str, int]
-    color : List[it]
+    color : List[int]
     key_code : str
 
 @dataclass

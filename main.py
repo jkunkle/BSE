@@ -8,12 +8,14 @@ from system.transport_system import TransportSystem
 BUILDINGS_DATA = 'data/buildings.json'
 RECIPES_DATA = 'data/recipes.json'
 ITEMS_DATA = 'data/items.json'
+WORKERS_DATA = 'data/workers.json'
 
 import pygame
 from pathlib import Path
 
 from model.grid import Grid
 from model.world import World
+from model.ui_state import UIState
 from view.pygame_view import PygameView
 from controller.pygame_controller import PygameController
 
@@ -34,10 +36,10 @@ def main() -> None:
 
     clock = pygame.time.Clock()
 
-    cstore = load_config(BUILDINGS_DATA, RECIPES_DATA, ITEMS_DATA)
+    cstore = load_config(BUILDINGS_DATA, RECIPES_DATA, ITEMS_DATA, WORKERS_DATA)
 
-    world = World(cstore, workers=0)
-    uistate = UIState()
+    world = World(cstore)
+    ui_state = UIState()
 
     #id_lumber = world.add_building('lumber_camp', 5, 5)
     #id_sawmill = world.add_building('sawmill', 20, 20)
@@ -69,13 +71,13 @@ def main() -> None:
             if event.type == pygame.QUIT:
                 running = False
             else:
-                controller.handle_event(event, world, view)
+                controller.handle_event(event, world, ui_state, view)
 
         while accumulator >= fixed_dt:
             step(world, ps, ts, frame_dt)
             accumulator -= fixed_dt
 
-        view.draw(screen, world)
+        view.draw(screen, world, ui_state)
 
         pygame.display.flip()
 

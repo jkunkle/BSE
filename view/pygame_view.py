@@ -1,4 +1,6 @@
 import pygame
+from model.ui_state import UITab
+from model.worker import NeedType
 
 
 class PygameView:
@@ -6,8 +8,7 @@ class PygameView:
         self.tile_size = tile_size
         self.font = pygame.font.SysFont(None, 20)
 
-        self.info_tab_idx = 0
-        self.info_tab_options = [
+        self.info_tab_draw_funcs = [
             ("overview",
             self._get_overview_lines),
             ("buildings",
@@ -22,54 +23,15 @@ class PygameView:
             self._get_contracts_lines),
         ]
 
-        self.contract_item_idx = None
-
-        # store sorted list of contracts
-        # which may be updated time to time
-        self._contract_item_list : List[(float, str)] = []
 
 
-
-    def advance_info_tab(self, left=False):
-        if left:
-            self.info_tab_idx = max(0, self.info_tab_idx - 1)
-        else:
-            self.info_tab_idx += 1
-            if self.info_tab_idx >= len(self.info_tab_options):
-                self.info_tab_idx = 0
-
-
-    def draw(self, screen, world) -> None:
+    def draw(self, screen, world, ui_state) -> None:
         screen.fill((25, 25, 25))
 
         self._draw_grid(screen, world)
         self._draw_buildings(screen, world)
         self._draw_transport_jobs(screen, world)
-        self._draw_info_panel(screen, world)
-
-    def process_up_key(self) -> None:
-
-        if self.info_tab_options[self.info_tab_idx][0] != 'contracts':
-            return
-
-        if self.contract_item_idx is None or self.contract_item_idx == 0:
-            self.contract_item_idx = len(self._contract_item_list) - 1
-        else :
-            self.contract_item_idx -= 1
-
-
-    def process_down_key(self) -> None:
-
-        if self.info_tab_options[self.info_tab_idx][0] != 'contracts':
-            return
-
-        if self.contract_item_idx is None:
-            self.contract_item_idx = 0
-
-        else:
-            self.contract_item_idx += 1
-            if self.contract_item_idx >= len(self._contract_item_list):
-                self.contract_item_idx = 0
+        self._draw_info_panel(screen, world, ui_state)
 
     def _draw_grid(self, screen, world) -> None:
         for y in range(world.grid.y_size):
@@ -136,24 +98,37 @@ class PygameView:
                     2,
                 )
 
-    def _draw_info_panel(self, screen, world) -> None:
+    def _draw_info_panel(self, screen, world, ui_state) -> None:
         x = world.grid.x_size * self.tile_size + 20
         y = 20
 
-        y = self._draw_tab_header(screen, x, y)
+        y = self._draw_tab_header(screen, ui_state, x, y)
 
-        lines = self.info_tab_options[self.info_tab_idx][1](world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.OVERVIEW:
+            lines = self._get_overview_lines(world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.BUILDINGS:
+            lines = self._get_building_lines(world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.INVENTORIES:
+            lines = self._get_inventory_lines(world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.TRANSPORT:
+            lines = self._get_transport_lines(world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.WORKERS:
+            lines = self._get_worker_lines(world)
+        if ui_state.info_tab_options[ui_state.info_tab_idx] == UITab.CONTRACTS:
+            lines = self._get_contracts_lines(world, ui_state)
+
+        #lines = self.info_tab_draw_funcs[ui_state.info_tab_idx][1](world)
 
         self._draw_lines(screen, lines, x, y)
 
-    def _draw_tab_header(self, screen, x: int, y: int) -> int:
+    def _draw_tab_header(self, screen, ui_state, x: int, y: int) -> int:
 
-        for idx, (name, _) in enumerate(self.info_tab_options):
-            if self.info_tab_idx == idx:
-                text = f"{name}"
+        for idx, tab in enumerate(ui_state.info_tab_options):
+            if ui_state.info_tab_idx == idx:
+                text = f"{tab.value}"
                 color = (255, 240, 160)
             else:
-                text = f"{name}"
+                text = f"{tab.value}"
                 color = (170, 170, 170)
 
             rendered = self.font.render(text, True, color)
@@ -174,7 +149,7 @@ class PygameView:
         entries = [
             f"Day : {world.day} Time: {world.day_time:.1f}",
             f"$$$ : {world.money}",
-            f'Available Workers : {world.avaialble_workers}',
+            f'Available Workers : {world.get_n_idle_workers()}',
             f"Buildings: {len(world.buildings)}",
             f"Transport jobs: {len(world.transport_jobs)}",
             f"Workers: {len(getattr(world, 'workers', {}))}",
@@ -276,6 +251,27 @@ class PygameView:
             lines.append("No workers")
             return lines
 
+        n_total = len(world.workers)
+        n_idle = world.get_n_idle_workers()
+        sum_food = 0
+        sum_rec = 0
+        sum_sleep = 0
+        for w in workers.values():
+            sum_food += w.needs[NeedType.FOOD]
+            sum_rec += w.needs[NeedType.RECREATION]
+            sum_sleep += w.needs[NeedType.SLEEP]
+
+        avg_food = sum_food/n_total
+        avg_rec = sum_rec/n_total
+        avg_sleep = sum_sleep/n_total
+
+        lines.append(f'Active: {n_total-n_idle}, Idle: {n_idle}, Total : {n_total}')
+        lines.append(f'Avg Food : {avg_food}')
+        lines.append(f'Avg Recreation : {avg_rec}')
+        lines.append(f'Avg Sleep : {avg_sleep}')
+
+        lines.append('-------')
+
         for worker in workers.values():
             lines.append(f"Worker #{worker.id}")
             lines.append(f"  state: {worker.state}")
@@ -295,9 +291,7 @@ class PygameView:
 
         return lines
     
-    def _get_contracts_lines(self, world):
-
-        self._update_contract_list(world)
+    def _get_contracts_lines(self, world, ui_state):
 
         lines = [
             "Down arrow to select, ",
@@ -307,21 +301,42 @@ class PygameView:
             "",
 
         ]
-        for idx, (price, ikey) in enumerate(self._contract_item_list):
-            amount = world.contracts.items[ikey]
 
-            if self.contract_item_idx is None:
-                text = f'{ikey} ({price}) : {amount}'
-            elif self.contract_item_idx == idx:
-                text = f'-> {ikey} ({price}) : {amount}'
+        contract_ids_list = world.get_contract_ids_sorted_by_price()
+
+        for cid in contract_ids_list:
+
+            name = world.contracts[cid].item_key
+            price = world.contracts[cid].price
+            amount = world.contracts[cid].amount
+
+            if ui_state.selected_contract_id is None:
+                text = f'{name} ({price}) : {amount}'
+            elif ui_state.selected_contract_id == cid:
+                text = f'-> {name} ({price}) : {amount}'
             else:
-                text = f'{ikey} ({price}) : {amount}'
+                text = f'{name} ({price}) : {amount}'
 
             lines.append(text)
 
         lines.append('')
+        
+        if world.export_completed:
 
-        lines.append('Bill')
+            n_workers = len(world.workers)
+            worker_cost = n_workers*world.worker_cost
+
+            lines.append('Bill')
+            lines.append('-------')
+
+            day_total = 0
+            for b in world.bill:
+                day_total += b.get_total()
+                lines.append(f'{b.name} ({b.amount}) * {b.price}  = {b.get_total()}')
+
+            lines.append('-------')
+            lines.append(f'Day Total : {day_total}')
+
 
         return lines
 

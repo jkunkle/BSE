@@ -1,6 +1,6 @@
 # ui/ui_state.py
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 class UITab(Enum):
@@ -13,7 +13,7 @@ class UITab(Enum):
 
 @dataclass
 class UIState:
-     info_tab_options: list[InfoTab] = field(default_factory=lambda: [
+    info_tab_options: list[InfoTab] = field(default_factory=lambda: [
         UITab.OVERVIEW,
         UITab.BUILDINGS,
         UITab.INVENTORIES,
@@ -34,3 +34,6 @@ class UIState:
 
     def previous_info_tab(self) -> None:
         self.info_tab_idx = (self.info_tab_idx - 1) % len(self.info_tab_options)
+
+    def deselect_contract_id(self) -> None:
+        self.selected_contract_id = None

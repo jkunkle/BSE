@@ -5,6 +5,7 @@ from types import MappingProxyType
 from model.recipe import RecipeTypeDefinition
 from model.building import BuildingTypeDefinition
 from model.item import ItemDefinition
+from model.worker import WorkerType, NeedType
 from model.config_store import ConfigStore
 
 
@@ -28,7 +29,7 @@ def freeze_mapping(data: dict[str, int]) -> MappingProxyType:
     '''
     return MappingProxyType(dict(data))
 
-def load_config(building_types_path: str, recipes_path: str, items_path: str):
+def load_config(building_types_path: str, recipes_path: str, items_path: str, worker_types_path:str ):
 
     items = load_items(items_path)
     recipes = load_recipes(recipes_path)
@@ -38,8 +39,49 @@ def load_config(building_types_path: str, recipes_path: str, items_path: str):
 
     validate_building_types(recipes, building_types, items)
 
-    return ConfigStore(items, recipes, building_types)
+    worker_types = load_worker_types(worker_types_path)
 
+    return ConfigStore(items, recipes, building_types, worker_types)
+
+def load_worker_types(path: str) -> dict[str, WorkerType]:
+    raw_data = read_json_file(path)
+    print (raw_data)
+
+    if 'worker_types' not in raw_data:
+        raise ValueError(f'{path} must contain top-level key "worker_types"')
+
+
+    wtypes: dict[str, WorkerType] = {}
+
+    for worker_key, worker_data in raw_data['worker_types'].items():
+        need_rates = parse_need_rates(
+            worker_data.get("need_rates", {})
+        )
+
+        wtypes[worker_key] = WorkerType(
+            key=worker_key,
+            name=worker_data['name'],
+            price=worker_data['price'],
+            need_rates=freeze_mapping(need_rates),
+        )
+
+    return wtypes
+
+
+def parse_need_type(value: str) -> NeedType:
+    try:
+        return NeedType(value)
+    except ValueError as error:
+        valid_values = ", ".join(need_type.value for need_type in NeedType)
+        raise ValueError(
+            f"Unknown need type {value!r}. Valid values are: {valid_values}"
+        ) from error
+
+def parse_need_rates(raw_need_rates: dict[str, float]) -> dict[NeedType, float]:
+    return {
+        parse_need_type(need_type_key): float(rate)
+        for need_type_key, rate in raw_need_rates.items()
+    }
 def load_items(path: str) -> dict[str, ItemDefinition]:
     raw_data = read_json_file(path)
 

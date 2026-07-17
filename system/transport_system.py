@@ -2,7 +2,7 @@ import logging
 from math import sqrt
 
 from model.transport_job import TransportJob, TransportJobState
-from model.worker import WorkerState
+from model.worker import WorkerState, NeedType
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,7 @@ class TransportSystem:
 
     def update(self, world, dt: float) -> None:
         self.complete_finished_jobs(world)
+        self.create_jobs_for_worker_activities(world)
         self.create_jobs_for_worker_return(world)
         self.create_jobs_from_supply_links(world)
 
@@ -29,6 +30,23 @@ class TransportSystem:
 
             self._complete_job(world, job_id)
 
+    def create_jobs_for_worker_activities(self, world) -> None:
+
+        for worker in world.workers.values():
+            if worker.state != WorkerState.ASSIGNED:
+                continue
+            
+            if worker.needs[NeedType.FOOD] < 0.5:
+                self._try_create_market_job(world, worker)
+                continue
+            if worker.needs[NeedType.SLEEP] < 0.5:
+                self._try_create_return_home_job(world, worker)
+                continue
+            if worker.needs[NeedType.RECREATION] < 0.5:
+                self._try_create_return_home_job(world, worker)
+                continue
+
+
     def create_jobs_from_supply_links(self, world) -> None:
         for supply_link in world.supply_links.values():
             self._try_create_job_for_supply_link(world, supply_link)
@@ -38,6 +56,36 @@ class TransportSystem:
             for supply_worker_id in supply_link.worker_ids:
                 sworker = world.workers[supply_worker_id] 
                 self._try_create_job_for_worker_return(world, supply_link, sworker)
+
+    def _try_create_return_home_job(self, world, worker) -> None:
+        print (worker)
+
+        source = world.buildings[worker.located_building_id]
+        target = world.buildings[worker.home_building_id]
+        self.create_empty_transport_job(world, worker, target, source)
+
+    def _try_create_market_job(self, world, worker) -> None:
+
+        # FIXME -- may need to update to handle multiple markets
+        market = None
+        for b in world.buildings:
+            if b.building_type_key == 'market':
+                market = b
+                break
+
+        if market is None:
+            logger.warning('Market not found!')
+            return
+
+        if worker.located_building_id == market.id:
+            return
+
+        source = worker.located_building_id
+        target = market.id
+
+        
+        create_empty_transport_job(world, worker, target, source)
+
 
     def _try_create_job_for_supply_link(self, world, supply_link) -> None:
 
@@ -69,8 +117,6 @@ class TransportSystem:
         if chosen_worker is None:
             return
         
-        print ('Worker available!')
-        print (world.workers[chosen_worker])
         # Important: reserve by removing from source immediately.
         # This prevents the same item being assigned to many jobs.
         source.inventory.remove(item_key, amount)
@@ -100,28 +146,31 @@ class TransportSystem:
         world.changed_buildings.add(source.id)
         world.changed_transport_jobs.add(job_id)
 
-        print(
-            "Created transport job %s: %s x%s from building %s to building %s, finish_time=%.2f"
-            %(job_id,
+        logger.info(
+            "Created transport job %s: %s x%s from building %s to building %s, finish_time=%.2f",
+            job_id,
             item_key,
             amount,
             source.id,
             target.id,
             job.finish_time,
-             )
+             
         )
 
     def _try_create_job_for_worker_return(self, world, supply_link, worker) -> None:
 
-        if worker.state != WorkerState.IDLE:
+        if worker.state != WorkerState.ASSIGNED:
             return;
 
         if worker.located_building_id != supply_link.target_building_id:
             return
         
-
         source = world.buildings[supply_link.source_building_id]
         target = world.buildings[supply_link.target_building_id]
+
+        self.create_empty_transport_job(world, worker, target, source)
+
+    def create_empty_transport_job(self, world, worker, target, source):
 
         duration = self._calculate_transport_duration(world, target, source)
 
@@ -148,7 +197,7 @@ class TransportSystem:
         world.changed_transport_jobs.add(job_id)
 
         logger.info(
-            "Created Return job %s from building %s to building %s, finish_time=%.2f",
+            "Created Empty job %s from building %s to building %s, finish_time=%.2f",
             job_id,
             target.id,
             source.id,
@@ -174,10 +223,20 @@ class TransportSystem:
 
             target.inventory.add(job.item_key, job.amount)
 
+        if world.buildings[job.target_building_id].building_type_key == 'market':
+            if world.workers[job.worker_id].needs[NeedType.FOOD] < 0.5 :
+                #FIXME -- only one type of food consumed
+                if not target.inventory.can_remove('vegetable', 1):
+                    logger.warning(
+                        "Transport job %s arrived, but market building %s has no supply",
+                        job_id,
+                        target.id,
+                    )
+                target.inventory.remove('vegetable', 1)
 
 
         job.state = TransportJobState.COMPLETED
-        world.workers[job.worker_id].state = WorkerState.IDLE
+        world.workers[job.worker_id].state = WorkerState.ASSIGNED
         world.workers[job.worker_id].located_building_id = target.id
 
         world.changed_buildings.add(target.id)

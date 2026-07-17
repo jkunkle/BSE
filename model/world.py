@@ -5,25 +5,28 @@ from model.grid import Grid
 from model.building import Building, Door
 from model.inventory import Inventory
 from model.supply_link import SupplyLink
-from model.worker import Worker, WorkerState
+from model.worker import Worker, WorkerState, NeedType
 from model.contract import Contract
+from model.bill import BillItem
 
 
 class World():
 
-    def __init__(self, config_store, workers=0, x=50, y=50, money=1000):
+    def __init__(self, config_store, x=50, y=50, money=1000):
 
         self._x_max = x
         self._y_max = y
 
 
         self.grid = Grid(x, y)
-        self.buildings : dict[int, Building] = {}
         self.config = config_store
+
+        self.buildings : dict[int, Building] = {}
         self.transport_jobs = {}
         self.supply_links: dict[int, SupplyLink] = {}
         self.workers : dict[int, Worker] = {}
-        self.contracts = dict[int, Contract] = {}
+        self.contracts : dict[int, Contract] = {}
+        self.bill : list[BillItem] = []
 
         self._next_building_id: int = 0
         self._next_supply_link_id: int = 0
@@ -33,17 +36,18 @@ class World():
 
         self.changed_buildings = set()
         self.changed_transport_jobs = set()
-        changed_contracts: set[int] = set()
+        self.changed_contracts: set[int] = set()
         self.changed_grid = False
         self.day = 0
         self.day_time = 0
         self.time = 0
         self.money = money
-        self.avaialble_workers = workers
         self.speed = 500
 
         self.minutes_in_day = 200
         self.export_day_time = 100
+        # FIXME -- needs to be configurable
+        self.export_completed = False
 
         self._init_contracts()
         self.contract_list_order : List[int] = []
@@ -78,6 +82,13 @@ class World():
             ),
         )
 
+    def get_n_idle_workers(self):
+        
+        return len(list(filter(
+            lambda w: w.state == WorkerState.IDLE,
+            self.workers.values()
+        )))
+
     def increase_speed(self):
         self.speed += 100
 
@@ -91,9 +102,81 @@ class World():
 
         self.time += dt
         self.day_time += dt
+
+        for w in self.workers.values():
+            wtypekey = w.type_key
+
+            wtype = self.config.worker_types[wtypekey]
+
+            w.needs[NeedType.FOOD] = (
+                w.needs[NeedType.FOOD] 
+                + wtype.need_rates[NeedType.FOOD]*dt
+            )
+            if w.state != WorkerState.IDLE:
+                w.needs[NeedType.RECREATION] = (
+                    w.needs[NeedType.RECREATION] 
+                    + wtype.need_rates[NeedType.RECREATION]*dt
+                )
+                w.needs[NeedType.SLEEP] = (
+                    w.needs[NeedType.SLEEP] 
+                    + wtype.need_rates[NeedType.SLEEP]*dt
+                )
+            
+            if w.state == WorkerState.RESTING:
+
+                w.needs[NeedType.RECREATION] = (
+                    w.needs[NeedType.RECREATION] 
+                    - wtype.need_rates[NeedType.RECREATION]*dt
+                )
+                w.needs[NeedType.SLEEP] = (
+                    w.needs[NeedType.SLEEP] 
+                    - wtype.need_rates[NeedType.SLEEP]*dt
+                )
+            
+
+
         if self.day_time >= self.minutes_in_day:
             self.day += 1
             self.day_time = 0
+            self.export_completed = False
+            self.bill = []
+
+        if self.day_time >= self.export_day_time and not self.export_completed:
+
+            self.bill = []
+
+            worker_cost = -1*sum([w.salary for w in self.workers.values()])
+        
+            self.bill.append(BillItem(
+                name='workers',
+                amount=len(self.workers),
+                price=worker_cost
+            ))
+
+            export_hub = None
+            for b in self.buildings.values():
+                if self.config.building_types[b.building_type_key].key == 'export':
+                    export_hub = b
+                    break
+
+            if export_hub is not None:
+                for contract in self.contracts.values():
+                    if contract.amount > 0:
+                        stored = export_hub.inventory.get_amount(contract.item_key)
+                        to_sell = min(contract.amount, stored)
+                        print (f'to_sell = {to_sell}')
+                        self.bill.append(BillItem(
+                            name=contract.item_key,
+                            amount=to_sell,
+                            price=contract.price
+                        ))
+                        export_hub.inventory.remove(contract.item_key, to_sell)
+
+            for b in self.bill:
+                self.money += b.get_total()
+
+            self.export_completed = True
+
 
     def get_next_building_id(self):
 
@@ -139,13 +222,13 @@ class World():
             y_size=building_type.y_size,
         ):
             return Error(PlacementError.AREA_OCCUPIED, 'Area occupied')
-
         if 'housing' not in building_type.capabilities:
-            if building_type.workers > self.avaialble_workers:
+            n_available = self.get_n_idle_workers()
+            if building_type.workers > n_available:
                 return Error(
                     PlacementError.LACKING_WORKERS,
                     f'Building requires {building_type.workers}, '
-                    f'but only {self.avaialble_workers} avaialble'
+                    f'but only {n_available} available'
                 )
 
         building_id = self.get_next_building_id()
@@ -187,25 +270,23 @@ class World():
 
         self.money -= cost
 
-        # FIXME - a bit of a hack
         worker_ids = []
         if 'housing' in building_type.capabilities:
-            self.avaialble_workers += building_type.workers
+            worker_ids = self.create_idle_workers(
+                building_type.workers,
+                'standard',
+                building_id
+            )
         else:
             for iw in range(0, building_type.workers):
-                wid = self.get_next_worker_id()
-                wkr = Worker(
-                        wid,
-                        assigned_building_id=building_id,
-                        state=WorkerState.ASSIGNED
-                    )
-                self.workers[wid] = wkr
-
+                wid = self.get_next_idle_worker_id()
                 worker_ids.append(wid)
+                if wid is None:
+                    raise ValueError('Failed to find idle worker!')
 
-            self.avaialble_workers -= len(worker_ids)
+                self.workers[wid].assigned_building_id=building_id
+                self.workers[wid].state = WorkerState.ASSIGNED
 
-    
         curr_recipe_key = None
         if building_type.recipe_keys:
             curr_recipe_key = building_type.recipe_keys[0]
@@ -223,6 +304,9 @@ class World():
             recipe_keys = building_type.recipe_keys,
             current_recipe_key = curr_recipe_key
         )
+
+        for wid in worker_ids:
+            self.workers[wid].home_building_id = building_id
     
         self.buildings[building_id] = building
     
@@ -284,8 +368,10 @@ class World():
 
     def free_worker(self, wid):
 
-        del self.workers[wid]
-        self.avaialble_workers += 1
+        self.workers[wid].assigned_building_id = None
+        self.workers[wid].assigned_supply_id = None
+        self.workers[wid].assigned_job_id = None
+        self.workers[wid].state = WorkerState.IDLE
 
     def add_supply_link(
         self,
@@ -304,30 +390,29 @@ class World():
         if target_building_id not in self.buildings:
             raise ValueError(f"Unknown target building: {target_building_id}")
 
-        if required_workers > self.avaialble_workers:
+        n_available = self.get_n_idle_workers()
+        if required_workers > n_available:
             return Error(
                 PlacementError.LACKING_WORKERS,
                 f'Supply link requires {required_workers} workers, '
-                'but only {self.avaialble_workers} avaialble'
+                'but only {n_available} available'
             )
     
         supply_link_id = self.get_next_supply_link_id()
 
         worker_ids = []
         for iw in range(0, required_workers):
-            wid = self.get_next_worker_id(),
-            wkr = Worker(
-                    wid,
-                    assigned_supply_id=supply_link_id,
-                    assigned_building_id=source_building_id,
-                    located_building_id=source_building_id,
-                    state=WorkerState.ASSIGNED,
-                )
-            self.workers[wid] = wkr
+            wid = self.get_next_idle_worker_id()
+            if wid is None:
+                raise ValueError('Failed to find idle worker!')
+
             worker_ids.append(wid)
 
-        self.avaialble_workers -= len(worker_ids)
-    
+            self.workers[wid].assigned_supply_id=supply_link_id
+            self.workers[wid].assigned_building_id=source_building_id
+            self.workers[wid].located_building_id=source_building_id
+            self.workers[wid].state = WorkerState.ASSIGNED
+
         self.supply_links[supply_link_id] = SupplyLink(
             id=supply_link_id,
             source_building_id=source_building_id,
@@ -337,10 +422,37 @@ class World():
             worker_ids = worker_ids,
         )
 
-        print ('Added supply link')
-        print (self.supply_links[supply_link_id])
-    
         return supply_link_id
+
+    def get_next_idle_worker_id(self):
+
+        for wid, wkr in self.workers.items():
+            if wkr.state == WorkerState.IDLE:
+                return wid
+
+        return None
+
+    def create_idle_workers(
+        self,
+        n_workers: int,
+        type_key: str,
+        home_building_id: int
+        ):
+
+        worker_ids = []
+        for w in range(0, n_workers):
+            wid = self.get_next_worker_id()
+            worker_ids.append(wid)
+            wkr = Worker(
+                id=wid,
+                type_key=type_key,
+                home_building_id=home_building_id,
+                located_building_id=home_building_id,
+                state=WorkerState.IDLE,
+            )
+            self.workers[wid] = wkr
+
+        return worker_ids
 
 
 
