@@ -25,8 +25,8 @@ class ProductionSystem:
         if not self._workers_present(world, building):
             if building.production_end_time is not None:
                 # No one's here to do the work -- freeze the countdown
-                # instead of letting it finish while unattended.
-                building.production_start_time += dt
+                # instead of letting it finish while unattended. start_time
+                # stays put; it records when the cycle actually began.
                 building.production_end_time += dt
             return
 
