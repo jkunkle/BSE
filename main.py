@@ -38,7 +38,7 @@ def main() -> None:
 
     cstore = load_config(BUILDINGS_DATA, RECIPES_DATA, ITEMS_DATA, WORKERS_DATA)
 
-    world = World(cstore)
+    world = World(cstore, money=2000)
     ui_state = UIState()
 
     #id_lumber = world.add_building('lumber_camp', 5, 5)

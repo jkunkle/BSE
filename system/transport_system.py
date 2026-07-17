@@ -8,11 +8,17 @@ logger = logging.getLogger(__name__)
 
 
 class TransportSystem:
-    def __init__(self, transport_speed_tiles_per_second: float = 3.0):
+    def __init__(
+        self,
+        transport_speed_tiles_per_second: float = 3.0,
+        rest_need_threshold: float = 0.95,
+    ):
         if transport_speed_tiles_per_second <= 0:
             raise ValueError("transport_speed_tiles_per_second must be positive")
 
         self.transport_speed_tiles_per_second = transport_speed_tiles_per_second
+        self.rest_need_threshold = rest_need_threshold
+        self.food_need_per_vegetable = 0.5
 
     def update(self, world, dt: float) -> None:
         self.complete_finished_jobs(world)
@@ -33,9 +39,13 @@ class TransportSystem:
     def create_jobs_for_worker_activities(self, world) -> None:
 
         for worker in world.workers.values():
+            if worker.state == WorkerState.RESTING:
+                self._try_finish_resting(world, worker)
+                continue
+
             if worker.state != WorkerState.ASSIGNED:
                 continue
-            
+
             if worker.needs[NeedType.FOOD] < 0.5:
                 self._try_create_market_job(world, worker)
                 continue
@@ -45,6 +55,16 @@ class TransportSystem:
             if worker.needs[NeedType.RECREATION] < 0.5:
                 self._try_create_return_home_job(world, worker)
                 continue
+
+    def _try_finish_resting(self, world, worker) -> None:
+        if worker.needs[NeedType.SLEEP] < self.rest_need_threshold:
+            return
+        if worker.needs[NeedType.RECREATION] < self.rest_need_threshold:
+            return
+
+        origin = world.buildings[worker.home_building_id]
+        destination = world.buildings[worker.assigned_building_id]
+        self.create_empty_transport_job(world, worker, origin, destination)
 
 
     def create_jobs_from_supply_links(self, world) -> None:
@@ -58,17 +78,15 @@ class TransportSystem:
                 self._try_create_job_for_worker_return(world, supply_link, sworker)
 
     def _try_create_return_home_job(self, world, worker) -> None:
-        print (worker)
-
-        source = world.buildings[worker.located_building_id]
-        target = world.buildings[worker.home_building_id]
-        self.create_empty_transport_job(world, worker, target, source)
+        origin = world.buildings[worker.located_building_id]
+        destination = world.buildings[worker.home_building_id]
+        self.create_empty_transport_job(world, worker, origin, destination)
 
     def _try_create_market_job(self, world, worker) -> None:
 
         # FIXME -- may need to update to handle multiple markets
         market = None
-        for b in world.buildings:
+        for b in world.buildings.values():
             if b.building_type_key == 'market':
                 market = b
                 break
@@ -80,11 +98,10 @@ class TransportSystem:
         if worker.located_building_id == market.id:
             return
 
-        source = worker.located_building_id
-        target = market.id
+        origin = world.buildings[worker.located_building_id]
+        destination = market
 
-        
-        create_empty_transport_job(world, worker, target, source)
+        self.create_empty_transport_job(world, worker, origin, destination)
 
 
     def _try_create_job_for_supply_link(self, world, supply_link) -> None:
@@ -164,22 +181,22 @@ class TransportSystem:
 
         if worker.located_building_id != supply_link.target_building_id:
             return
-        
-        source = world.buildings[supply_link.source_building_id]
-        target = world.buildings[supply_link.target_building_id]
 
-        self.create_empty_transport_job(world, worker, target, source)
+        origin = world.buildings[supply_link.target_building_id]
+        destination = world.buildings[supply_link.source_building_id]
 
-    def create_empty_transport_job(self, world, worker, target, source):
+        self.create_empty_transport_job(world, worker, origin, destination)
 
-        duration = self._calculate_transport_duration(world, target, source)
+    def create_empty_transport_job(self, world, worker, origin, destination):
+
+        duration = self._calculate_transport_duration(world, origin, destination)
 
         job_id = world.get_next_transport_job_id()
 
         job = TransportJob(
             job_id=job_id,
-            source_building_id=target.id,
-            target_building_id=source.id,
+            source_building_id=origin.id,
+            target_building_id=destination.id,
             item_key=None,
             amount=0,
             worker_id=worker.id,
@@ -199,8 +216,8 @@ class TransportSystem:
         logger.info(
             "Created Empty job %s from building %s to building %s, finish_time=%.2f",
             job_id,
-            target.id,
-            source.id,
+            origin.id,
+            destination.id,
             job.finish_time,
         )
 
@@ -223,21 +240,33 @@ class TransportSystem:
 
             target.inventory.add(job.item_key, job.amount)
 
-        if world.buildings[job.target_building_id].building_type_key == 'market':
-            if world.workers[job.worker_id].needs[NeedType.FOOD] < 0.5 :
+        if target.building_type_key == 'market':
+            eating_worker = world.workers[job.worker_id]
+            if eating_worker.needs[NeedType.FOOD] < 0.5:
                 #FIXME -- only one type of food consumed
-                if not target.inventory.can_remove('vegetable', 1):
+                if target.inventory.can_remove('vegetables', 1):
+                    target.inventory.remove('vegetables', 1)
+                    eating_worker.needs[NeedType.FOOD] += self.food_need_per_vegetable
+                else:
                     logger.warning(
                         "Transport job %s arrived, but market building %s has no supply",
                         job_id,
                         target.id,
                     )
-                target.inventory.remove('vegetable', 1)
 
 
         job.state = TransportJobState.COMPLETED
-        world.workers[job.worker_id].state = WorkerState.ASSIGNED
-        world.workers[job.worker_id].located_building_id = target.id
+
+        worker = world.workers[job.worker_id]
+        worker.located_building_id = target.id
+
+        if target.id == worker.home_building_id and (
+            worker.needs[NeedType.SLEEP] < self.rest_need_threshold
+            or worker.needs[NeedType.RECREATION] < self.rest_need_threshold
+        ):
+            worker.state = WorkerState.RESTING
+        else:
+            worker.state = WorkerState.ASSIGNED
 
         world.changed_buildings.add(target.id)
         world.changed_transport_jobs.add(job_id)
