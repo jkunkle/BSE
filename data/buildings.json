@@ -23,7 +23,7 @@
       "capabilities": ["housing"],
       "recipes": [],
       "cost" : 200,
-      "workers": 2,
+      "workers": 8,
       "storage": {
       },
       "color" : [0, 0, 130],

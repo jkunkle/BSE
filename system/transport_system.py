@@ -43,6 +43,13 @@ class TransportSystem:
                 self._try_finish_resting(world, worker)
                 continue
 
+            if worker.state == WorkerState.IDLE:
+                if worker.needs[NeedType.FOOD] < 0.5:
+                    self._try_create_market_job(world, worker)
+                elif worker.located_building_id != worker.home_building_id:
+                    self._try_create_return_home_job(world, worker)
+                continue
+
             if worker.state != WorkerState.ASSIGNED:
                 continue
 
@@ -83,6 +90,11 @@ class TransportSystem:
         if worker.needs[NeedType.SLEEP] < self.rest_need_threshold:
             return
         if worker.needs[NeedType.RECREATION] < self.rest_need_threshold:
+            return
+
+        if worker.assigned_building_id is None:
+            # No job to head back to -- an unemployed worker is already home.
+            worker.state = WorkerState.IDLE
             return
 
         origin = world.buildings[worker.home_building_id]
@@ -288,8 +300,10 @@ class TransportSystem:
             or worker.needs[NeedType.RECREATION] < self.rest_need_threshold
         ):
             worker.state = WorkerState.RESTING
-        else:
+        elif worker.assigned_building_id is not None:
             worker.state = WorkerState.ASSIGNED
+        else:
+            worker.state = WorkerState.IDLE
 
         world.changed_buildings.add(target.id)
         world.changed_transport_jobs.add(job_id)
