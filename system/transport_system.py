@@ -92,6 +92,12 @@ class TransportSystem:
         if worker.needs[NeedType.RECREATION] < self.rest_need_threshold:
             return
 
+        if worker.needs[NeedType.FOOD] < 0.5:
+            # Already home -- grab food before heading back to work instead
+            # of walking to work and immediately being pulled back out.
+            self._try_create_market_job(world, worker)
+            return
+
         if worker.assigned_building_id is None:
             # No job to head back to -- an unemployed worker is already home.
             worker.state = WorkerState.IDLE
