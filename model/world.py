@@ -143,12 +143,13 @@ class World():
 
             self.bill = []
 
-            worker_cost = -1*sum([w.salary for w in self.workers.values()])
-        
+            n_workers = len(self.workers)
+            avg_salary = sum(w.salary for w in self.workers.values()) / n_workers if n_workers else 0
+
             self.bill.append(BillItem(
                 name='workers',
-                amount=len(self.workers),
-                price=worker_cost
+                amount=n_workers,
+                price=-1*avg_salary
             ))
 
             export_hub = None
