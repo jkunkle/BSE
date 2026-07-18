@@ -281,7 +281,9 @@ class TransportSystem:
                 #FIXME -- only one type of food consumed
                 if target.inventory.can_remove('vegetables', 1):
                     target.inventory.remove('vegetables', 1)
-                    eating_worker.needs[NeedType.FOOD] += self.food_need_per_vegetable
+                    eating_worker.needs[NeedType.FOOD] = min(
+                        1.0, eating_worker.needs[NeedType.FOOD] + self.food_need_per_vegetable
+                    )
                 else:
                     logger.warning(
                         "Transport job %s arrived, but market building %s has no supply",

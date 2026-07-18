@@ -113,11 +113,11 @@ class World():
                 + wtype.need_rates[NeedType.FOOD]*dt
             )
             if w.state == WorkerState.RESTING:
-                w.needs[NeedType.RECREATION] = (
+                w.needs[NeedType.RECREATION] = min(1.0,
                     w.needs[NeedType.RECREATION]
                     - wtype.need_rates[NeedType.RECREATION]*dt
                 )
-                w.needs[NeedType.SLEEP] = (
+                w.needs[NeedType.SLEEP] = min(1.0,
                     w.needs[NeedType.SLEEP]
                     - wtype.need_rates[NeedType.SLEEP]*dt
                 )
