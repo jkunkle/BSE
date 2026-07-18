@@ -1,12 +1,12 @@
 import pygame
 from model.ui_state import UITab
-from model.worker import NeedType
+from model.worker import NeedType, WorkerState
 
 
 class PygameView:
     def __init__(self, tile_size: int = 32):
         self.tile_size = tile_size
-        self.font = pygame.font.SysFont(None, 20)
+        self.font = pygame.font.SysFont(None, 14)
 
         self.info_tab_draw_funcs = [
             ("overview",
@@ -122,6 +122,7 @@ class PygameView:
         self._draw_lines(screen, lines, x, y)
 
     def _draw_tab_header(self, screen, ui_state, x: int, y: int) -> int:
+        line_height = self.font.get_linesize()
 
         for idx, tab in enumerate(ui_state.info_tab_options):
             if ui_state.info_tab_idx == idx:
@@ -133,7 +134,7 @@ class PygameView:
 
             rendered = self.font.render(text, True, color)
             screen.blit(rendered, (x, y))
-            y += 20
+            y += line_height
 
         y += 10
         return y
@@ -266,31 +267,52 @@ class PygameView:
         avg_sleep = sum_sleep/n_total
 
         lines.append(f'Active: {n_total-n_idle}, Idle: {n_idle}, Total : {n_total}')
-        lines.append(f'Avg Food : {avg_food}')
-        lines.append(f'Avg Recreation : {avg_rec}')
-        lines.append(f'Avg Sleep : {avg_sleep}')
+        lines.append(f'Avg F:{avg_food:.2f} S:{avg_sleep:.2f} R:{avg_rec:.2f}')
 
         lines.append('-------')
 
         for worker in workers.values():
-
-            lines.append(f"Worker #{worker.id}")
-            lines.append(f"  state: {worker.state}")
-
-            current_building_id = getattr(worker, "current_building_id", None)
-            current_job_id = getattr(worker, "current_job_id", None)
-
-            if current_building_id is not None:
-                lines.append(f"  at building: #{current_building_id}")
-            else:
-                lines.append("  in transit")
-
-            if current_job_id is not None:
-                lines.append(f"  job: #{current_job_id}")
-
+            lines.append(f"Worker {worker.id}")
+            lines.append(
+                f"F:{worker.needs[NeedType.FOOD]:.2f} "
+                f"S:{worker.needs[NeedType.SLEEP]:.2f} "
+                f"R:{worker.needs[NeedType.RECREATION]:.2f}"
+            )
+            lines.append(self._get_worker_activity_text(world, worker))
             lines.append("")
 
         return lines
+
+    def _get_worker_activity_text(self, world, worker) -> str:
+        if worker.state == WorkerState.RESTING:
+            return "resting"
+
+        if worker.state == WorkerState.MOVING:
+            job = world.transport_jobs.get(worker.assigned_job_id)
+            if job is not None:
+                source = world.buildings.get(job.source_building_id)
+                target = world.buildings.get(job.target_building_id)
+                source_label = source.building_type_key if source else "?"
+                target_label = target.building_type_key if target else "?"
+                return f"moving from {source_label} to {target_label}"
+            return "moving"
+
+        if worker.state == WorkerState.IDLE:
+            return "idle"
+
+        if worker.state == WorkerState.ASSIGNED:
+            building = world.buildings.get(worker.assigned_building_id)
+            if building is None:
+                return "assigned"
+
+            label = building.building_type_key
+            if worker.located_building_id != building.id:
+                return f"heading to {label}"
+            if building.production_end_time is not None:
+                return f"working at {label}"
+            return f"at {label}"
+
+        return worker.state.name.lower()
     
     def _get_contracts_lines(self, world, ui_state):
 
@@ -340,7 +362,7 @@ class PygameView:
 
 
     def _draw_lines(self, screen, lines: list[str], x: int, y: int) -> None:
-        line_height = 20
+        line_height = self.font.get_linesize()
         max_y = screen.get_height() - line_height
 
         for line in lines:
