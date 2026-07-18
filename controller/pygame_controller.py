@@ -20,6 +20,9 @@ class PygameController:
 
 
         if event.type == pygame.KEYDOWN:
+            if ui_state.choosing_link_item:
+                return
+
             handled_contract_keydown = False
             if ui_state.current_info_tab == UITab.CONTRACTS:
                 handled_contract_keydown = self._handle_contract_keydown(event, world, ui_state)
@@ -28,7 +31,7 @@ class PygameController:
                 self._handle_keydown(event, world, ui_state, view)
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            self._handle_mouse_button(event, world)
+            self._handle_mouse_button(event, world, ui_state, view)
 
     def _handle_keydown(self, event: pygame.event.Event, world, ui_state, view) -> None:
 
@@ -95,8 +98,12 @@ class PygameController:
             return True
 
         return False
-    def _handle_mouse_button(self, event: pygame.event.Event, world) -> None:
+    def _handle_mouse_button(self, event: pygame.event.Event, world, ui_state, view) -> None:
         if event.button != 1:
+            return
+
+        if ui_state.choosing_link_item:
+            self._handle_item_choice_click(event.pos, world, ui_state, view)
             return
 
         mouse_x, mouse_y = event.pos
@@ -151,22 +158,23 @@ class PygameController:
                         if item_key is not None:
                             break
 
+                    if item_key is None and len(possible_items) > 1:
+                        # Genuinely ambiguous -- let the user pick.
+                        ui_state.start_link_item_choice(
+                            self.link_source_id, self.link_dest_id, sorted(possible_items)
+                        )
+                        self.make_supply_link = False
+                        self.link_source_id = None
+                        self.link_dest_id = None
+                        return
+
                     if item_key is None and possible_items:
                         item_key = next(iter(possible_items))
 
                     if item_key is None:
                         logger.warning('No transferable item found between buildings %s and %s', self.link_source_id, self.link_dest_id)
                     else:
-                        try:
-                            world.add_supply_link(
-                                source_building_id=self.link_source_id,
-                                target_building_id=self.link_dest_id,
-                                item_key=item_key,
-                                required_workers=1,
-                                amount_per_job=1,
-                            )
-                        except ValueError as error:
-                            logger.warning('Could not create supply link: %s', error)
+                        self._create_supply_link(world, self.link_source_id, self.link_dest_id, item_key)
 
                     self.make_supply_link = False
                     self.link_source_id = None
@@ -193,3 +201,29 @@ class PygameController:
 
                 except ValueError as error:
                     logger.warning('Could not place building: %s', error)
+
+    def _handle_item_choice_click(self, pos, world, ui_state, view) -> None:
+        source_id = ui_state.pending_link_source_id
+        dest_id = ui_state.pending_link_dest_id
+
+        for item_key, rect in view.get_item_choice_rects(ui_state):
+            if rect.collidepoint(pos):
+                ui_state.clear_link_item_choice()
+                self._create_supply_link(world, source_id, dest_id, item_key)
+                return
+
+        # Click missed every option -- treat it as cancelling the link.
+        logger.info('Supply link item choice cancelled')
+        ui_state.clear_link_item_choice()
+
+    def _create_supply_link(self, world, source_id: int, dest_id: int, item_key: str) -> None:
+        try:
+            world.add_supply_link(
+                source_building_id=source_id,
+                target_building_id=dest_id,
+                item_key=item_key,
+                required_workers=1,
+                amount_per_job=1,
+            )
+        except ValueError as error:
+            logger.warning('Could not create supply link: %s', error)

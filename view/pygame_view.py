@@ -32,6 +32,7 @@ class PygameView:
         self._draw_buildings(screen, world)
         self._draw_transport_jobs(screen, world)
         self._draw_info_panel(screen, world, ui_state)
+        self._draw_item_choice_popup(screen, ui_state)
 
     def _draw_grid(self, screen, world) -> None:
         for y in range(world.grid.y_size):
@@ -97,6 +98,49 @@ class PygameView:
                     (int(current_x), int(current_y)),
                     2,
                 )
+
+    def get_item_choice_rects(self, ui_state) -> list[tuple[str, pygame.Rect]]:
+        """Layout for the item-choice popup, shared by drawing and click hit-testing."""
+        if not ui_state.pending_link_item_choices:
+            return []
+
+        box_x, box_y = 300, 200
+        row_height = self.font.get_linesize() + 8
+        row_width = 220
+
+        rects = []
+        for i, item_key in enumerate(ui_state.pending_link_item_choices):
+            rect = pygame.Rect(box_x, box_y + i * row_height, row_width, row_height - 4)
+            rects.append((item_key, rect))
+
+        return rects
+
+    def _draw_item_choice_popup(self, screen, ui_state) -> None:
+        rects = self.get_item_choice_rects(ui_state)
+        if not rects:
+            return
+
+        padding = 10
+        title_height = self.font.get_linesize() + padding
+        first_rect = rects[0][1]
+
+        box_x = first_rect.x - padding
+        box_y = first_rect.y - padding - title_height
+        box_w = first_rect.w + padding * 2
+        box_h = title_height + sum(rect.h + 4 for _, rect in rects) + padding
+
+        panel_rect = pygame.Rect(box_x, box_y, box_w, box_h)
+        pygame.draw.rect(screen, (35, 35, 45), panel_rect)
+        pygame.draw.rect(screen, (200, 200, 200), panel_rect, 2)
+
+        title = self.font.render("Choose item to transport", True, (255, 240, 160))
+        screen.blit(title, (box_x + padding, box_y + padding // 2))
+
+        for item_key, rect in rects:
+            pygame.draw.rect(screen, (60, 60, 75), rect)
+            pygame.draw.rect(screen, (150, 150, 150), rect, 1)
+            label = self.font.render(item_key, True, (230, 230, 230))
+            screen.blit(label, (rect.x + 6, rect.y + 2))
 
     def _draw_info_panel(self, screen, world, ui_state) -> None:
         x = world.grid.x_size * self.tile_size + 20
