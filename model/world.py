@@ -162,13 +162,13 @@ class World():
                     if contract.amount > 0:
                         stored = export_hub.inventory.get_amount(contract.item_key)
                         to_sell = min(contract.amount, stored)
-                        print (f'to_sell = {to_sell}')
-                        self.bill.append(BillItem(
-                            name=contract.item_key,
-                            amount=to_sell,
-                            price=contract.price
-                        ))
-                        export_hub.inventory.remove(contract.item_key, to_sell)
+                        if to_sell > 0:
+                            self.bill.append(BillItem(
+                                name=contract.item_key,
+                                amount=to_sell,
+                                price=contract.price
+                            ))
+                            export_hub.inventory.remove(contract.item_key, to_sell)
 
             for b in self.bill:
                 self.money += b.get_total()
