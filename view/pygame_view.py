@@ -324,9 +324,6 @@ class PygameView:
         
         if world.export_completed:
 
-            n_workers = len(world.workers)
-            worker_cost = n_workers*world.worker_cost
-
             lines.append('Bill')
             lines.append('-------')
 
