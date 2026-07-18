@@ -23,7 +23,6 @@ class TransportSystem:
     def update(self, world, dt: float) -> None:
         self.complete_finished_jobs(world)
         self.create_jobs_for_worker_activities(world)
-        self.create_jobs_for_worker_return(world)
         self.create_jobs_from_supply_links(world)
 
     def complete_finished_jobs(self, world) -> None:
@@ -44,9 +43,10 @@ class TransportSystem:
                 continue
 
             if worker.state == WorkerState.IDLE:
+                went_to_market = False
                 if worker.needs[NeedType.FOOD] < 0.5:
-                    self._try_create_market_job(world, worker)
-                elif worker.located_building_id != worker.home_building_id:
+                    went_to_market = self._try_create_market_job(world, worker)
+                if not went_to_market and worker.located_building_id != worker.home_building_id:
                     self._try_create_return_home_job(world, worker)
                 continue
 
@@ -57,8 +57,11 @@ class TransportSystem:
                 continue
 
             if worker.needs[NeedType.FOOD] < 0.5:
-                self._try_create_market_job(world, worker)
-                continue
+                if self._try_create_market_job(world, worker):
+                    continue
+                # Already at an empty market -- standing here won't feed
+                # anyone. Fall through so the worker can still be useful
+                # (and, if they're the one restocking it, actually able to).
             if worker.needs[NeedType.SLEEP] < 0.5:
                 self._try_create_return_home_job(world, worker)
                 continue
@@ -95,8 +98,10 @@ class TransportSystem:
         if worker.needs[NeedType.FOOD] < 0.5:
             # Already home -- grab food before heading back to work instead
             # of walking to work and immediately being pulled back out.
-            self._try_create_market_job(world, worker)
-            return
+            if self._try_create_market_job(world, worker):
+                return
+            # Market has nothing to offer right now -- don't stay parked
+            # here forever; head back to work instead.
 
         if worker.assigned_building_id is None:
             # No job to head back to -- an unemployed worker is already home.
@@ -112,18 +117,12 @@ class TransportSystem:
         for supply_link in world.supply_links.values():
             self._try_create_job_for_supply_link(world, supply_link)
 
-    def create_jobs_for_worker_return(self, world) -> None:
-        for supply_link in world.supply_links.values():
-            for supply_worker_id in supply_link.worker_ids:
-                sworker = world.workers[supply_worker_id] 
-                self._try_create_job_for_worker_return(world, supply_link, sworker)
-
     def _try_create_return_home_job(self, world, worker) -> None:
         origin = world.buildings[worker.located_building_id]
         destination = world.buildings[worker.home_building_id]
         self.create_empty_transport_job(world, worker, origin, destination)
 
-    def _try_create_market_job(self, world, worker) -> None:
+    def _try_create_market_job(self, world, worker) -> bool:
 
         # FIXME -- may need to update to handle multiple markets
         market = None
@@ -134,15 +133,22 @@ class TransportSystem:
 
         if market is None:
             logger.warning('Market not found!')
-            return
+            return False
 
         if worker.located_building_id == market.id:
-            return
+            return False
+
+        if not market.inventory.can_remove('vegetables', 1):
+            # Nothing to eat there right now -- don't send anyone on a
+            # pointless trip, especially a worker whose job is the only
+            # thing that could ever restock it.
+            return False
 
         origin = world.buildings[worker.located_building_id]
         destination = market
 
         self.create_empty_transport_job(world, worker, origin, destination)
+        return True
 
 
     def _try_create_job_for_supply_link(self, world, supply_link) -> None:
@@ -214,19 +220,6 @@ class TransportSystem:
             job.finish_time,
              
         )
-
-    def _try_create_job_for_worker_return(self, world, supply_link, worker) -> None:
-
-        if worker.state != WorkerState.ASSIGNED:
-            return;
-
-        if worker.located_building_id != supply_link.target_building_id:
-            return
-
-        origin = world.buildings[supply_link.target_building_id]
-        destination = world.buildings[supply_link.source_building_id]
-
-        self.create_empty_transport_job(world, worker, origin, destination)
 
     def create_empty_transport_job(self, world, worker, origin, destination):
 

@@ -90,11 +90,18 @@ class World():
         )))
 
     def increase_speed(self):
-        self.speed += 100
+        if self.speed < 100:
+            self.speed *= 2
+        else:
+            self.speed += 100
 
     def decrease_speed(self):
         if self.speed > 100:
             self.speed -= 100
+
+        else:
+            self.speed = self.speed/2.
+            
 
     def advance_time(self, dt: float) -> None:
         if dt <= 0:
