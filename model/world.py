@@ -283,7 +283,6 @@ class World():
                     raise ValueError('Failed to find idle worker!')
 
                 self.workers[wid].assigned_building_id=building_id
-                self.workers[wid].located_building_id=building_id
                 self.workers[wid].state = WorkerState.ASSIGNED
 
         curr_recipe_key = None
@@ -406,7 +405,6 @@ class World():
 
             self.workers[wid].assigned_supply_id=supply_link_id
             self.workers[wid].assigned_building_id=source_building_id
-            self.workers[wid].located_building_id=source_building_id
             self.workers[wid].state = WorkerState.ASSIGNED
 
         self.supply_links[supply_link_id] = SupplyLink(

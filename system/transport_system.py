@@ -59,12 +59,25 @@ class TransportSystem:
                 self._try_create_return_home_job(world, worker)
                 continue
 
+            self._try_create_job_to_assigned_building(world, worker)
+
     def _is_mid_production(self, world, worker) -> bool:
         building = world.buildings.get(worker.assigned_building_id)
         if building is None:
             return False
 
         return building.production_end_time is not None
+
+    def _try_create_job_to_assigned_building(self, world, worker) -> None:
+        if worker.assigned_building_id is None:
+            return
+
+        if worker.located_building_id == worker.assigned_building_id:
+            return
+
+        origin = world.buildings[worker.located_building_id]
+        destination = world.buildings[worker.assigned_building_id]
+        self.create_empty_transport_job(world, worker, origin, destination)
 
     def _try_finish_resting(self, world, worker) -> None:
         if worker.needs[NeedType.SLEEP] < self.rest_need_threshold:
