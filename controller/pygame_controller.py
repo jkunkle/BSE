@@ -126,34 +126,43 @@ class PygameController:
                     source_bldg = world.buildings[self.link_source_id]
                     dest_bldg = world.buildings[self.link_dest_id]
 
-                    # get all possible items stored
-                    possible_items = dict(world.buildings[self.link_source_id].inventory.limits)
+                    # only items the source can hold AND the destination can accept
+                    possible_items = {
+                        key: limit for key, limit in source_bldg.inventory.limits.items()
+                        if dest_bldg.inventory.accepts_item(key)
+                    }
 
                     # do not take inputs from the source building
                     for key in source_bldg.recipe_keys:
                         for item in world.config.recipes[key].inputs.keys():
-                            possible_items.pop(item)
+                            possible_items.pop(item, None)
 
                     item_key = None
-                    # prioritize inputs to dest building
+                    # prioritize items the destination needs as a recipe input
                     for key in dest_bldg.recipe_keys:
-                        if key in possible_items:
-                            item_key = key
-                     
-                    if item_key is None:
-                        item_key = list(possible_items.keys())[0]
+                        for item in world.config.recipes[key].inputs.keys():
+                            if item in possible_items:
+                                item_key = item
+                                break
+                        if item_key is not None:
+                            break
+
+                    if item_key is None and possible_items:
+                        item_key = next(iter(possible_items))
 
                     if item_key is None:
                         print ('WARNING item_key not found!')
-                        return
-
-                    world.add_supply_link(
-                        source_building_id=self.link_source_id,
-                        target_building_id=self.link_dest_id,
-                        item_key=item_key,
-                        required_workers=1,
-                        amount_per_job=1,
-                    ) 
+                    else:
+                        try:
+                            world.add_supply_link(
+                                source_building_id=self.link_source_id,
+                                target_building_id=self.link_dest_id,
+                                item_key=item_key,
+                                required_workers=1,
+                                amount_per_job=1,
+                            )
+                        except ValueError as error:
+                            print(f"Could not create supply link: {error}")
 
                     self.make_supply_link = False
                     self.link_source_id = None

@@ -385,6 +385,9 @@ class World():
         if target_building_id not in self.buildings:
             raise ValueError(f"Unknown target building: {target_building_id}")
 
+        if self.buildings[source_building_id].building_type_key == 'market':
+            raise ValueError("A market cannot be a supply link source; items may only flow into it")
+
         n_available = self.get_n_idle_workers()
         if required_workers > n_available:
             return Error(
