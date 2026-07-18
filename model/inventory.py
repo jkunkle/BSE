@@ -4,8 +4,12 @@ from typing import Mapping
 class Inventory:
 
     def __init__(self, limits):
+        # Copy into a plain, mutable dict -- the source may be a frozen
+        # mapping shared by every building of this type (e.g. a
+        # BuildingTypeDefinition's storage_limits), and each building's
+        # inventory needs to be free to adjust its own limits independently.
+        self.limits = dict(limits)
         self.amounts = {}
-        self.limits = limits
 
         for key in self.limits.keys():
             self.amounts[key] = 0

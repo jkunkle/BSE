@@ -82,6 +82,32 @@ class World():
             ),
         )
 
+    def get_export_hub(self):
+        for b in self.buildings.values():
+            if b.building_type_key == 'export':
+                return b
+
+        return None
+
+    def increase_contract_amount(self, contract_id: int) -> None:
+        self.contracts[contract_id].increase_amount()
+        self._sync_export_hub_limits()
+
+    def decrease_contract_amount(self, contract_id: int) -> None:
+        self.contracts[contract_id].decrease_amount()
+        self._sync_export_hub_limits()
+
+    def _sync_export_hub_limits(self) -> None:
+        # The export hub isn't general storage: it should only ever hold as
+        # much of an item as is currently contracted to be sold, so it can't
+        # be used to stockpile goods that aren't actually being exported.
+        export_hub = self.get_export_hub()
+        if export_hub is None:
+            return
+
+        for contract in self.contracts.values():
+            export_hub.inventory.limits[contract.item_key] = contract.amount
+
     def get_n_idle_workers(self):
         
         return len(list(filter(
@@ -159,11 +185,7 @@ class World():
                 price=-1*avg_salary
             ))
 
-            export_hub = None
-            for b in self.buildings.values():
-                if self.config.building_types[b.building_type_key].key == 'export':
-                    export_hub = b
-                    break
+            export_hub = self.get_export_hub()
 
             if export_hub is not None:
                 for contract in self.contracts.values():
@@ -312,7 +334,10 @@ class World():
         )
 
         self.buildings[building_id] = building
-    
+
+        if building_type_key == 'export':
+            self._sync_export_hub_limits()
+
         self.grid.mark_occupied_building(
             x=x,
             y=y,

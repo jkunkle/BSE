@@ -89,12 +89,12 @@ class PygameController:
         if event.key == pygame.K_RIGHT:
             if ui_state.selected_contract_id is None:
                 return False
-            world.contracts[ui_state.selected_contract_id].increase_amount()
+            world.increase_contract_amount(ui_state.selected_contract_id)
             return True
         if event.key == pygame.K_LEFT:
             if ui_state.selected_contract_id is None:
                 return False
-            world.contracts[ui_state.selected_contract_id].decrease_amount()
+            world.decrease_contract_amount(ui_state.selected_contract_id)
             return True
 
         return False
