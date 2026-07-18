@@ -1,5 +1,9 @@
+import logging
+
 import pygame
 from model.ui_state import UITab
+
+logger = logging.getLogger(__name__)
 
 
 class PygameController:
@@ -112,16 +116,16 @@ class PygameController:
             if self.link_source_id is None:
                 self.link_source_id = world.grid.get_tile(tile_x, tile_y).building_id
                 if self.link_source_id is None:
-                    print ('No source building found!')
+                    logger.warning('No source building found!')
                     return
-                print (f'Source building id = {self.link_source_id}')
+                logger.info('Source building id = %s', self.link_source_id)
             else:
                 if self.link_dest_id is None:
                     self.link_dest_id =  world.grid.get_tile(tile_x, tile_y).building_id
                     if self.link_dest_id is None:
-                        print ('No destination building found!')
+                        logger.warning('No destination building found!')
                         return
-                    print (f'Destination building id = {self.link_dest_id}')
+                    logger.info('Destination building id = %s', self.link_dest_id)
             
                     source_bldg = world.buildings[self.link_source_id]
                     dest_bldg = world.buildings[self.link_dest_id]
@@ -151,7 +155,7 @@ class PygameController:
                         item_key = next(iter(possible_items))
 
                     if item_key is None:
-                        print ('WARNING item_key not found!')
+                        logger.warning('No transferable item found between buildings %s and %s', self.link_source_id, self.link_dest_id)
                     else:
                         try:
                             world.add_supply_link(
@@ -162,7 +166,7 @@ class PygameController:
                                 amount_per_job=1,
                             )
                         except ValueError as error:
-                            print(f"Could not create supply link: {error}")
+                            logger.warning('Could not create supply link: %s', error)
 
                     self.make_supply_link = False
                     self.link_source_id = None
@@ -176,13 +180,16 @@ class PygameController:
                         tile_y,
                     )
 
-                    print(
-                        f"Added building {building_id}: "
-                        f"{self.selected_building_type_key} at ({tile_x}, {tile_y})"
+                    logger.info(
+                        "Added building %s: %s at (%s, %s)",
+                        building_id,
+                        self.selected_building_type_key,
+                        tile_x,
+                        tile_y,
                     )
 
                     self.make_building = False
 
 
                 except ValueError as error:
-                    print(f"Could not place building: {error}")
+                    logger.warning('Could not place building: %s', error)
