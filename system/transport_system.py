@@ -76,6 +76,13 @@ class TransportSystem:
         if building is None:
             return False
 
+        # Only the building's own production staff should be held in place
+        # for an in-progress cycle -- a supply-link courier can share the
+        # same assigned_building_id (its source) without being the one
+        # actually doing the production there.
+        if worker.id not in building.worker_ids:
+            return False
+
         return building.production_end_time is not None
 
     def _try_create_job_to_assigned_building(self, world, worker) -> None:
